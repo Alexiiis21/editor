@@ -1,0 +1,206 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime?
+  image         String?
+  password      String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  accounts      Account[]
+  sessions      Session[]
+  projects      Project[]
+  
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model Project {
+  id          String   @id @default(cuid())
+  name        String
+  description String?
+  userId      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  videos      Video[]
+  timeline    TimelineData?
+  renders     Render[]
+  
+  @@map("projects")
+}
+
+model Video {
+  id           String   @id @default(cuid())
+  projectId    String
+  filename     String
+  originalName String
+  mimeType     String
+  size         BigInt
+  duration     Float?
+  width        Int?
+  height       Int?
+  fps          Float?
+  storageUrl   String
+  thumbnailUrl String?
+  status       VideoStatus @default(UPLOADING)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  project      Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  assets       Asset[]
+  aiTasks      AITask[]
+  
+  @@map("videos")
+}
+
+enum VideoStatus {
+  UPLOADING
+  PROCESSING
+  READY
+  FAILED
+}
+
+model Asset {
+  id          String     @id @default(cuid())
+  videoId     String
+  type        AssetType
+  name        String
+  url         String
+  metadata    Json?
+  createdAt   DateTime   @default(now())
+  
+  video       Video      @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  
+  @@map("assets")
+}
+
+enum AssetType {
+  AUDIO
+  SUBTITLE
+  THUMBNAIL
+  TRANSCRIPT
+}
+
+model AITask {
+  id          String      @id @default(cuid())
+  videoId     String
+  type        AITaskType
+  status      TaskStatus  @default(PENDING)
+  input       Json?
+  output      Json?
+  error       String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  video       Video       @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  
+  @@map("ai_tasks")
+}
+
+enum AITaskType {
+  TRANSCRIBE
+  SCENE_DETECTION
+  OBJECT_DETECTION
+  FACE_DETECTION
+  SENTIMENT_ANALYSIS
+  AUTO_EDIT
+}
+
+enum TaskStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+}
+
+model TimelineData {
+  id          String   @id @default(cuid())
+  projectId   String   @unique
+  data        Json
+  version     Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  @@map("timeline_data")
+}
+
+model Render {
+  id          String       @id @default(cuid())
+  projectId   String
+  filename    String
+  outputUrl   String?
+  status      RenderStatus @default(QUEUED)
+  settings    Json
+  progress    Float        @default(0)
+  error       String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  @@map("renders")
+}
+
+enum RenderStatus {
+  QUEUED
+  PROCESSING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
